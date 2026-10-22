@@ -1,0 +1,8 @@
+{
+  "name": "com.tailscale.webos.service",
+  "version": "1.104.2",
+  "description": "Tailscale webOS service",
+  "main": "service.js",
+  "author": "Tailscale on webOS",
+  "license": "BSD-3-Clause"
+}

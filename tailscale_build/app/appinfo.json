@@ -1,0 +1,13 @@
+{
+  "id": "com.tailscale.webos",
+  "version": "1.104.2",
+  "vendor": "Tailscale",
+  "type": "web",
+  "main": "index.html",
+  "title": "Tailscale",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "visible": true,
+  "bgColor": "#111827",
+  "handlesRelaunch": true
+}

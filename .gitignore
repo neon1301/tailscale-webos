@@ -1,0 +1,19 @@
+# Build artifacts
+*.ipk
+*.tgz
+*.tar.gz
+
+# Binaries (downloaded automatically during build)
+tailscale_build/service/bin/tailscale
+tailscale_build/service/bin/tailscaled
+
+# Runtime data
+tailscale_build/service/data/
+*.state
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]

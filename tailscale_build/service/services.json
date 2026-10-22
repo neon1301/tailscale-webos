@@ -1,0 +1,9 @@
+{
+  "id": "com.tailscale.webos.service",
+  "description": "Tailscale background service",
+  "services": [
+    {
+      "name": "com.tailscale.webos.service"
+    }
+  ]
+}
