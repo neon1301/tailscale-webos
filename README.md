@@ -9,6 +9,10 @@
 
 > **Важно:** Для работы **НЕ ТРЕБУЕТСЯ ROOT**! Tailscale работает в режиме `userspace-networking` и предоставляет локальный защищённый SOCKS5/HTTP-прокси (`127.0.0.1:1055`) для приложений (Lampa, TorrServe, OTT-плееры и др.).
 
+<p align="center">
+  <img src="screenshot.png" alt="Tailscale on LG webOS" width="850">
+</p>
+
 ---
 
 ## 🌟 Основные возможности
