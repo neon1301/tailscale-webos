@@ -1,6 +1,6 @@
 # Tailscale for LG webOS TV
 
-[![Build and Release Tailscale webOS IPK](https://github.com/USERNAME/tailscale-webos/actions/workflows/build.yml/badge.svg)](https://github.com/USERNAME/tailscale-webos/actions/workflows/build.yml)
+[![Build and Release Tailscale webOS IPK](https://github.com/neon1301/tailscale-webos/actions/workflows/build.yml/badge.svg)](https://github.com/neon1301/tailscale-webos/actions/workflows/build.yml)
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD_3--Clause-blue.svg)](LICENSE)
 [![webOS Compatibility](https://img.shields.io/badge/webOS-3.0%20..%2024-brightgreen.svg)](#)
 [![No Root Required](https://img.shields.io/badge/Root-NOT%20Required%20(Userspace)-orange.svg)](#)
@@ -25,7 +25,7 @@
 
 ## 📦 Быстрая установка
 
-1. Скачайте готовый `.ipk` файл со страницы [Releases](https://github.com/USERNAME/tailscale-webos/releases/latest) (например, `com.tailscale.webos_1.104.2_all.ipk`).
+1. Скачайте готовый `.ipk` файл со страницы [Releases](https://github.com/neon1301/tailscale-webos/releases/latest) (например, `com.tailscale.webos_1.104.2_all.ipk`).
 2. Установите на телевизор через **webOS Dev Manager** (просто перетащите файл мышкой) или через SSH:
    ```bash
    luna-send-pub -n 1 'luna://com.webos.appInstallService/dev/install' '{"id":"com.tailscale.webos","ipkUrl":"/tmp/tailscale.ipk"}'
@@ -58,7 +58,7 @@ Tailscale на webOS слушает локальный порт:
 Для сборки требуется только **Python 3**:
 
 ```bash
-git clone https://github.com/USERNAME/tailscale-webos.git
+git clone https://github.com/neon1301/tailscale-webos.git
 cd tailscale-webos
 
 # Запуск скрипта сборки
@@ -101,7 +101,7 @@ tailscale-webos/
 * **In-app Self-Update:** Download and apply latest Tailscale official ARM releases without a PC.
 
 ### Installation
-Download the latest `.ipk` from the [Releases](https://github.com/USERNAME/tailscale-webos/releases/latest) section and install via webOS Dev Manager.
+Download the latest `.ipk` from the [Releases](https://github.com/neon1301/tailscale-webos/releases/latest) section and install via webOS Dev Manager.
 
 </details>
 
