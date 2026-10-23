@@ -7,7 +7,9 @@
 
 Клиент **Tailscale** для телевизоров **LG webOS** с графическим интерфейсом для пульта ДУ, авторизацией по QR-коду, автозапуском в фоне 24/7 и встроенным онлайн-обновлением.
 
-> **Важно:** Для работы **НЕ ТРЕБУЕТСЯ ROOT**! Tailscale работает в режиме `userspace-networking` и предоставляет локальный защищённый SOCKS5/HTTP-прокси (`127.0.0.1:1055`) для приложений (Lampa, TorrServe, OTT-плееры и др.).
+> 📖 **[Полное руководство: Рутирование ТВ, вечный доступ без таймера 1000h, Homebrew Channel, Tailscale и Moonlight для удалённого гейминга](docs/ROOT_AND_GAMING_GUIDE.md)**
+
+> **Важно:** Для базовой работы **НЕ ТРЕБУЕТСЯ ROOT**! Tailscale работает в режиме `userspace-networking` и предоставляет локальный защищённый SOCKS5/HTTP-прокси (`127.0.0.1:1055`) для приложений (Lampa, TorrServe, OTT-плееры и др.). При наличии Root доступен полноценный сетевой туннель ядра `/dev/net/tun` для Moonlight.
 
 <p align="center">
   <img src="screenshot.png" alt="Tailscale on LG webOS" width="850">
