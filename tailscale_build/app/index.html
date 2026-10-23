@@ -424,12 +424,15 @@
       });
     }
 
-    function doLogin() {
+    function doLogin(force) {
+      showToast("⏳ Генерация QR-кода для входа...", 3000);
       document.getElementById("hero-desc").textContent = "Генерация ссылки для входа...";
-      callService("up", {}, function(res) {
-        if (res.authUrl) {
+      callService("up", { forceReauth: !!force }, function(res) {
+        if (res && res.authUrl) {
           showQR(res.authUrl);
+          showToast("📱 QR-код готов! Отсканируйте камерой смартфона", 5000);
         } else {
+          showToast("ℹ️ Телевизор уже в сети! Для входа в другой аккаунт сначала нажмите «Отключить аккаунт».", 6000);
           updateStatus();
         }
       });
@@ -496,11 +499,16 @@
     };
 
     document.getElementById("btn-check-update").onclick = checkAndApplyUpdate;
-    document.getElementById("btn-login").onclick = doLogin;
+    document.getElementById("btn-login").onclick = function() {
+      doLogin(true);
+    };
     document.getElementById("btn-logout").onclick = function() {
-      showToast("Отключение от аккаунта Tailscale...", 3000);
-      callService("down", {}, function() {
-        setTimeout(updateStatus, 600);
+      showToast("⏳ Отключение от аккаунта Tailscale...", 4000);
+      callService("logout", {}, function() {
+        showToast("👋 Вы успешно вышли из аккаунта!", 4000);
+        setTimeout(function() {
+          doLogin(false);
+        }, 800);
       });
     };
 

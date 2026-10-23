@@ -20,8 +20,8 @@ var baseDir = __dirname;
 var defaultBinDir = path.join(baseDir, 'bin');
 var customBinDir = '/media/developer/temp/tailscale_bin';
 
-var stateDir = '/tmp';
-var stateFile = '/tmp/tailscaled.state';
+var stateDir = '/media/developer/temp';
+var stateFile = '/media/developer/temp/tailscaled.state';
 var configFile = '/media/developer/temp/tailscale_config.json';
 var socketFile = '/tmp/tailscaled.sock';
 
@@ -268,7 +268,11 @@ function handleUp(params, cb) {
     }
 
     startDaemon(function () {
-        var args = ['--socket=' + socketFile, 'up', '--reset', '--timeout=5s'];
+        var forceReauth = params && params.forceReauth;
+        var args = ['--socket=' + socketFile, 'up', '--reset', '--timeout=6s'];
+        if (forceReauth) {
+            args.push('--force-reauth');
+        }
         var authKey = params ? params.authKey : null;
         if (authKey) {
             args.push('--auth-key=' + authKey);
@@ -296,6 +300,29 @@ function handleDown(params, cb) {
         cb({
             returnValue: !err,
             output: stdout || stderr
+        });
+    });
+}
+
+function handleLogout(params, cb) {
+    // 1. Invalidate node key via CLI
+    child_process.execFile(getTailscaleBin(), ['--socket=' + socketFile, 'logout'], { timeout: 5000 }, function () {
+        // 2. Bring down interface
+        child_process.execFile(getTailscaleBin(), ['--socket=' + socketFile, 'down'], { timeout: 4000 }, function () {
+            // 3. Clear auth state so fresh login URL is guaranteed
+            try {
+                if (fs.existsSync(stateFile)) {
+                    fs.unlinkSync(stateFile);
+                }
+            } catch (e) {}
+            // 4. Restart tailscaled clean
+            child_process.execFile('/usr/bin/pkill', ['-9', '-x', 'tailscaled'], function () {
+                setTimeout(function () {
+                    startDaemon(function () {
+                        cb({ returnValue: true });
+                    });
+                }, 800);
+            });
         });
     });
 }
@@ -384,6 +411,9 @@ if (service) {
     service.register('down', function (message) {
         handleDown(message.payload, function (res) { message.respond(res); });
     });
+    service.register('logout', function (message) {
+        handleLogout(message.payload, function (res) { message.respond(res); });
+    });
     service.register('checkUpdate', function (message) {
         handleCheckUpdate(message.payload, function (res) { message.respond(res); });
     });
@@ -430,6 +460,7 @@ try {
             else if (endpoint === 'toggleAutostart') handleToggleAutostart(params, sendJson);
             else if (endpoint === 'up') handleUp(params, sendJson);
             else if (endpoint === 'down') handleDown(params, sendJson);
+            else if (endpoint === 'logout') handleLogout(params, sendJson);
             else if (endpoint === 'checkUpdate') handleCheckUpdate(params, sendJson);
             else if (endpoint === 'applyUpdate') handleApplyUpdate(params, sendJson);
             else sendJson({ returnValue: false, error: 'Endpoint not found' });

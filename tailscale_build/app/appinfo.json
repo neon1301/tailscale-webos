@@ -1,6 +1,6 @@
 {
   "id": "com.tailscale.webos",
-  "version": "1.104.7",
+  "version": "1.104.8",
   "vendor": "Tailscale",
   "type": "web",
   "main": "index.html",
