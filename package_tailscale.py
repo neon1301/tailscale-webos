@@ -2,9 +2,39 @@ import tarfile
 import io
 import os
 import time
+import urllib.request
+import shutil
 
-build_dir = r'E:\TV\tailscale_build'
-out_ipk = r'E:\TV\com.tailscale.webos_1.104.8_all.ipk'
+root_dir = os.path.dirname(os.path.abspath(__file__))
+build_dir = os.path.join(root_dir, 'tailscale_build')
+bin_dir = os.path.join(build_dir, 'service', 'bin')
+out_ipk = os.path.join(root_dir, 'com.tailscale.webos_1.104.8_all.ipk')
+
+def ensure_binaries():
+    os.makedirs(bin_dir, exist_ok=True)
+    ts = os.path.join(bin_dir, 'tailscale')
+    tsd = os.path.join(bin_dir, 'tailscaled')
+    if os.path.exists(ts) and os.path.exists(tsd):
+        return
+    print("Downloading official Tailscale ARM package from pkgs.tailscale.com...")
+    url = "https://pkgs.tailscale.com/stable/tailscale_latest_arm.tgz"
+    tmp_tgz = os.path.join(root_dir, "tailscale_latest_arm.tgz")
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(req) as resp, open(tmp_tgz, "wb") as f:
+        shutil.copyfileobj(resp, f)
+    with tarfile.open(tmp_tgz, "r:gz") as tar:
+        for member in tar.getmembers():
+            if member.name.endswith("/tailscale") or member.name.endswith("/tailscaled"):
+                fname = os.path.basename(member.name)
+                dest = os.path.join(bin_dir, fname)
+                with tar.extractfile(member) as src, open(dest, "wb") as dst:
+                    shutil.copyfileobj(src, dst)
+                os.chmod(dest, 0o755)
+    if os.path.exists(tmp_tgz):
+        os.remove(tmp_tgz)
+    print("Tailscale binaries downloaded successfully.")
+
+ensure_binaries()
 
 # 1. debian-binary
 deb_binary = b'2.0\n'
