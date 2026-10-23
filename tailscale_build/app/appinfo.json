@@ -1,6 +1,6 @@
 {
   "id": "com.tailscale.webos",
-  "version": "1.104.2",
+  "version": "1.104.6",
   "vendor": "Tailscale",
   "type": "web",
   "main": "index.html",
@@ -9,5 +9,9 @@
   "largeIcon": "largeIcon.png",
   "visible": true,
   "bgColor": "#111827",
-  "handlesRelaunch": true
+  "handlesRelaunch": true,
+  "previewMetadata": {
+    "targetEndpoint": "luna://com.tailscale.webos.service/keepalive",
+    "sourceEndpoint": "@PREVIEW.ENDPOINT.SOURCE_LOCAL_STOREAPP"
+  }
 }

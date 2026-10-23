@@ -1,30 +1,29 @@
-process.env.NODE_PATH = '/usr/lib/node_modules:' + (process.env.NODE_PATH || '');
-require('module').Module._initPaths();
+process.env.NODE_PATH = '/usr/palm/frameworks:/usr/lib/nodejs:/usr/lib/node_modules:' + (process.env.NODE_PATH || '');
+try { require('module').Module._initPaths(); } catch (e) {}
 
 var Service = require('webos-service');
 var pkgInfo = require('./package.json');
 var child_process = require('child_process');
 var fs = require('fs');
 var path = require('path');
+var http = require('http');
 
-var service = new Service(pkgInfo.name);
+var service = null;
+try {
+    var Service = require('webos-service');
+    service = new Service(pkgInfo.name);
+} catch (e) {
+    console.warn('Luna bus service registration notice:', e.message);
+}
 
 var baseDir = __dirname;
 var defaultBinDir = path.join(baseDir, 'bin');
 var customBinDir = '/media/developer/temp/tailscale_bin';
 
-var stateDir = path.join(baseDir, 'data');
-var stateFile = path.join(stateDir, 'tailscaled.state');
-var configFile = path.join(stateDir, 'config.json');
+var stateDir = '/tmp';
+var stateFile = '/tmp/tailscaled.state';
+var configFile = '/media/developer/temp/tailscale_config.json';
 var socketFile = '/tmp/tailscaled.sock';
-
-try {
-    if (!fs.existsSync(stateDir)) {
-        fs.mkdirSync(stateDir);
-    }
-} catch (e) {
-    stateFile = '/tmp/tailscaled.state';
-}
 
 function getTailscaleBin() {
     var custom = path.join(customBinDir, 'tailscale');
@@ -93,7 +92,7 @@ function startDaemon(cb) {
 
     child_process.execFile(tailscaleBin, ['--socket=' + socketFile, 'status'], { timeout: 2000 }, function (err, stdout, stderr) {
         if (!err || (stdout && stdout.indexOf('Logged out') !== -1)) {
-            startWeb(cb);
+            if (cb) cb();
             return;
         }
 
@@ -116,28 +115,13 @@ function startDaemon(cb) {
         }
 
         setTimeout(function () {
-            startWeb(cb);
-        }, 1500);
+            if (cb) cb();
+        }, 1200);
     });
 }
 
-function startWeb(cb) {
-    ensurePermissions();
-    if (!config.enabled) {
-        if (cb) cb();
-        return;
-    }
-    try {
-        var web = child_process.spawn(getTailscaleBin(), ['--socket=' + socketFile, 'web', '--listen=127.0.0.1:8088'], {
-            detached: true,
-            stdio: 'ignore'
-        });
-        web.unref();
-    } catch (e) {}
-    if (cb) setTimeout(cb, 500);
-}
-
 function syncActivity() {
+    if (!service) return;
     if (!config.autostart || !config.enabled) {
         try {
             service.call('luna://com.webos.service.activitymanager/cancel', {
@@ -154,7 +138,7 @@ function syncActivity() {
                 description: 'Tailscale autostart and network watcher',
                 type: { background: true, persist: true, explicit: true },
                 trigger: { method: 'luna://com.webos.service.connectionmanager/getStatus' },
-                callback: { method: 'luna://com.tailscale.webos.service/keepalive', params: {} }
+                callback: { method: 'luna://' + pkgInfo.name + '/keepalive', params: {} }
             },
             start: true,
             replace: true
@@ -179,69 +163,15 @@ if (config.enabled) {
 }
 syncActivity();
 
-service.register('keepalive', function (message) {
-    if (config.enabled) {
-        startDaemon(function () {
-            message.respond({ returnValue: true, status: 'alive' });
-        });
-    } else {
-        message.respond({ returnValue: true, status: 'disabled' });
-    }
-});
-
-service.register('start', function (message) {
-    config.enabled = true;
-    saveConfig();
-    startDaemon(function () {
-        syncActivity();
-        message.respond({
-            returnValue: true,
-            status: 'started',
-            enabled: true,
-            proxy: '127.0.0.1:1055'
-        });
-    });
-});
-
-service.register('toggleEnabled', function (message) {
-    var newState = message.payload && typeof message.payload.enabled === 'boolean'
-        ? message.payload.enabled
-        : !config.enabled;
-
-    config.enabled = newState;
-    saveConfig();
-    syncActivity();
-
-    if (config.enabled) {
-        startDaemon(function () {
-            message.respond({ returnValue: true, enabled: true });
-        });
-    } else {
-        stopAll();
-        message.respond({ returnValue: true, enabled: false });
-    }
-});
-
-service.register('toggleAutostart', function (message) {
-    var newState = message.payload && typeof message.payload.autostart === 'boolean'
-        ? message.payload.autostart
-        : !config.autostart;
-
-    config.autostart = newState;
-    saveConfig();
-    syncActivity();
-
-    message.respond({ returnValue: true, autostart: config.autostart });
-});
-
-service.register('status', function (message) {
+// Core logic handlers (shared between Luna bus and direct HTTP API)
+function handleStatus(cb) {
     var currentBin = getTailscaleBin();
     child_process.execFile(currentBin, ['version'], { timeout: 2000 }, function (vErr, vOut) {
         var vMatch = (vOut || '').match(/^([0-9\.]+)/);
         var currentVersion = vMatch ? vMatch[1] : pkgInfo.version;
 
         if (!config.enabled) {
-            message.respond({
+            cb({
                 returnValue: true,
                 online: false,
                 enabled: false,
@@ -262,7 +192,7 @@ service.register('status', function (message) {
                     child_process.execFile(currentBin, ['--socket=' + socketFile, 'status'], { timeout: 2000 }, function (err2, out2, errText) {
                         var combined = (out2 || '') + (errText || '');
                         var match = combined.match(/https:\/\/login\.tailscale\.com\/a\/[a-zA-Z0-9]+/);
-                        message.respond({
+                        cb({
                             returnValue: true,
                             online: false,
                             enabled: true,
@@ -276,7 +206,7 @@ service.register('status', function (message) {
                 }
                 try {
                     var data = JSON.parse(stdout);
-                    message.respond({
+                    cb({
                         returnValue: true,
                         online: data.BackendState === 'Running',
                         enabled: true,
@@ -289,7 +219,7 @@ service.register('status', function (message) {
                         proxy: '127.0.0.1:1055'
                     });
                 } catch (parseErr) {
-                    message.respond({
+                    cb({
                         returnValue: false,
                         errorText: 'Parse error: ' + parseErr.message
                     });
@@ -297,75 +227,40 @@ service.register('status', function (message) {
             });
         });
     });
-});
+}
 
-service.register('checkUpdate', function (message) {
-    child_process.execFile('/usr/bin/curl', ['-sI', 'https://pkgs.tailscale.com/stable/tailscale_latest_arm.tgz'], { timeout: 8000 }, function (err, stdout) {
-        if (err || !stdout) {
-            message.respond({ returnValue: false, error: 'Network error checking update' });
-            return;
-        }
-        var m = stdout.match(/Location:\s*\/stable\/tailscale_([0-9\.]+)_arm/i);
-        var latestVersion = m ? m[1] : '';
+function handleToggleEnabled(params, cb) {
+    var newState = params && typeof params.enabled === 'boolean'
+        ? params.enabled
+        : !config.enabled;
 
-        child_process.execFile(getTailscaleBin(), ['version'], { timeout: 2500 }, function (err2, out2) {
-            var curM = (out2 || '').match(/^([0-9\.]+)/);
-            var currentVersion = curM ? curM[1] : pkgInfo.version;
-            var hasUpdate = !!(latestVersion && latestVersion !== currentVersion);
-            message.respond({
-                returnValue: true,
-                hasUpdate: hasUpdate,
-                latestVersion: latestVersion || currentVersion,
-                currentVersion: currentVersion
-            });
+    config.enabled = newState;
+    saveConfig();
+    syncActivity();
+
+    if (config.enabled) {
+        startDaemon(function () {
+            cb({ returnValue: true, enabled: true });
         });
-    });
-});
+    } else {
+        stopAll();
+        cb({ returnValue: true, enabled: false });
+    }
+}
 
-service.register('applyUpdate', function (message) {
-    var tmpTgz = '/tmp/tailscale_latest.tgz';
-    var tmpExtract = '/tmp/ts_extracted';
+function handleToggleAutostart(params, cb) {
+    var newState = params && typeof params.autostart === 'boolean'
+        ? params.autostart
+        : !config.autostart;
 
-    child_process.execFile('/usr/bin/curl', ['-sL', 'https://pkgs.tailscale.com/stable/tailscale_latest_arm.tgz', '-o', tmpTgz], { timeout: 120000 }, function (err) {
-        if (err) {
-            message.respond({ returnValue: false, error: 'Download failed: ' + err.message });
-            return;
-        }
+    config.autostart = newState;
+    saveConfig();
+    syncActivity();
 
-        var extractCmd = 'mkdir -p ' + tmpExtract + ' && tar -xzf ' + tmpTgz + ' -C ' + tmpExtract;
-        child_process.exec(extractCmd, { timeout: 30000 }, function (err2) {
-            if (err2) {
-                message.respond({ returnValue: false, error: 'Extract failed: ' + err2.message });
-                return;
-            }
+    cb({ returnValue: true, autostart: config.autostart });
+}
 
-            var moveCmd = 'mkdir -p ' + customBinDir + ' && cp -f ' + tmpExtract + '/*/tailscale* ' + customBinDir + '/ && chmod 0755 ' + customBinDir + '/* && rm -rf ' + tmpExtract + ' ' + tmpTgz;
-            child_process.exec(moveCmd, { timeout: 15000 }, function (err3) {
-                if (err3) {
-                    message.respond({ returnValue: false, error: 'Install failed: ' + err3.message });
-                    return;
-                }
-
-                stopAll();
-                setTimeout(function () {
-                    startDaemon(function () {
-                        child_process.execFile(getTailscaleBin(), ['version'], { timeout: 3000 }, function (err4, out4) {
-                            var curM = (out4 || '').match(/^([0-9\.]+)/);
-                            var newVer = curM ? curM[1] : 'updated';
-                            message.respond({
-                                returnValue: true,
-                                success: true,
-                                version: newVer
-                            });
-                        });
-                    });
-                }, 1000);
-            });
-        });
-    });
-});
-
-service.register('up', function (message) {
+function handleUp(params, cb) {
     if (!config.enabled) {
         config.enabled = true;
         saveConfig();
@@ -373,7 +268,7 @@ service.register('up', function (message) {
 
     startDaemon(function () {
         var args = ['--socket=' + socketFile, 'up', '--reset', '--timeout=5s'];
-        var authKey = message.payload ? message.payload.authKey : null;
+        var authKey = params ? params.authKey : null;
         if (authKey) {
             args.push('--auth-key=' + authKey);
         }
@@ -386,20 +281,163 @@ service.register('up', function (message) {
                 authUrl = match[0];
             }
 
-            message.respond({
+            cb({
                 returnValue: true,
                 authUrl: authUrl,
                 output: combined
             });
         });
     });
-});
+}
 
-service.register('down', function (message) {
+function handleDown(params, cb) {
     child_process.execFile(getTailscaleBin(), ['--socket=' + socketFile, 'down'], { timeout: 4000 }, function (err, stdout, stderr) {
-        message.respond({
+        cb({
             returnValue: !err,
             output: stdout || stderr
         });
     });
-});
+}
+
+function handleCheckUpdate(params, cb) {
+    child_process.execFile('/usr/bin/curl', ['-sI', 'https://pkgs.tailscale.com/stable/tailscale_latest_arm.tgz'], { timeout: 8000 }, function (err, stdout) {
+        if (err || !stdout) {
+            cb({ returnValue: false, error: 'Network error checking update' });
+            return;
+        }
+        var m = stdout.match(/Location:\s*\/stable\/tailscale_([0-9\.]+)_arm/i);
+        var latestVersion = m ? m[1] : '';
+
+        child_process.execFile(getTailscaleBin(), ['version'], { timeout: 2500 }, function (err2, out2) {
+            var curM = (out2 || '').match(/^([0-9\.]+)/);
+            var currentVersion = curM ? curM[1] : pkgInfo.version;
+            var hasUpdate = !!(latestVersion && latestVersion !== currentVersion);
+
+            cb({
+                returnValue: true,
+                hasUpdate: hasUpdate,
+                latestVersion: latestVersion || currentVersion,
+                currentVersion: currentVersion
+            });
+        });
+    });
+}
+
+function handleApplyUpdate(params, cb) {
+    var tmpTgz = '/tmp/tailscale_latest.tgz';
+    var tmpExtract = '/tmp/ts_extracted';
+
+    child_process.execFile('/usr/bin/curl', ['-sL', 'https://pkgs.tailscale.com/stable/tailscale_latest_arm.tgz', '-o', tmpTgz], { timeout: 120000 }, function (err) {
+        if (err) {
+            cb({ returnValue: false, error: 'Download failed: ' + err.message });
+            return;
+        }
+
+        var extractCmd = 'mkdir -p ' + tmpExtract + ' && tar -xzf ' + tmpTgz + ' -C ' + tmpExtract;
+        child_process.exec(extractCmd, { timeout: 30000 }, function (err2) {
+            if (err2) {
+                cb({ returnValue: false, error: 'Extract failed: ' + err2.message });
+                return;
+            }
+
+            var moveCmd = 'mkdir -p ' + customBinDir + ' && cp -f ' + tmpExtract + '/*/tailscale* ' + customBinDir + '/ && chmod 0755 ' + customBinDir + '/* && rm -rf ' + tmpExtract + ' ' + tmpTgz;
+            child_process.exec(moveCmd, { timeout: 15000 }, function (err3) {
+                if (err3) {
+                    cb({ returnValue: false, error: 'Install failed: ' + err3.message });
+                    return;
+                }
+
+                stopAll();
+                setTimeout(function () {
+                    startDaemon(function () {
+                        child_process.execFile(getTailscaleBin(), ['version'], { timeout: 3000 }, function (err4, out4) {
+                            var curM = (out4 || '').match(/^([0-9\.]+)/);
+                            var newVer = curM ? curM[1] : 'updated';
+                            cb({
+                                returnValue: true,
+                                success: true,
+                                version: newVer
+                            });
+                        });
+                    });
+                }, 1000);
+            });
+        });
+    });
+}
+
+// 1. Register Luna Bus methods (if available)
+if (service) {
+    service.register('status', function (message) {
+        handleStatus(function (res) { message.respond(res); });
+    });
+    service.register('toggleEnabled', function (message) {
+        handleToggleEnabled(message.payload, function (res) { message.respond(res); });
+    });
+    service.register('toggleAutostart', function (message) {
+        handleToggleAutostart(message.payload, function (res) { message.respond(res); });
+    });
+    service.register('up', function (message) {
+        handleUp(message.payload, function (res) { message.respond(res); });
+    });
+    service.register('down', function (message) {
+        handleDown(message.payload, function (res) { message.respond(res); });
+    });
+    service.register('checkUpdate', function (message) {
+        handleCheckUpdate(message.payload, function (res) { message.respond(res); });
+    });
+    service.register('applyUpdate', function (message) {
+        handleApplyUpdate(message.payload, function (res) { message.respond(res); });
+    });
+    service.register('keepalive', function (message) {
+        if (config.enabled) {
+            startDaemon(function () { message.respond({ returnValue: true, status: 'alive' }); });
+        } else {
+            message.respond({ returnValue: true, status: 'disabled' });
+        }
+    });
+}
+
+// 2. Start direct high-speed HTTP API fallback (127.0.0.1:1056)
+try {
+    var httpServer = http.createServer(function (req, res) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        if (req.method === 'OPTIONS') {
+            res.writeHead(200);
+            res.end();
+            return;
+        }
+
+        var urlParts = (req.url || '').split('?');
+        var endpoint = urlParts[0].replace(/^\//, '');
+
+        var body = '';
+        req.on('data', function (chunk) { body += chunk; });
+        req.on('end', function () {
+            var params = {};
+            try { if (body) params = JSON.parse(body); } catch (e) {}
+
+            function sendJson(data) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(data));
+            }
+
+            if (endpoint === 'status') handleStatus(sendJson);
+            else if (endpoint === 'toggleEnabled') handleToggleEnabled(params, sendJson);
+            else if (endpoint === 'toggleAutostart') handleToggleAutostart(params, sendJson);
+            else if (endpoint === 'up') handleUp(params, sendJson);
+            else if (endpoint === 'down') handleDown(params, sendJson);
+            else if (endpoint === 'checkUpdate') handleCheckUpdate(params, sendJson);
+            else if (endpoint === 'applyUpdate') handleApplyUpdate(params, sendJson);
+            else sendJson({ returnValue: false, error: 'Endpoint not found' });
+        });
+    });
+
+    httpServer.listen(1056, '127.0.0.1', function () {
+        console.log('Direct local API running on http://127.0.0.1:1056');
+    });
+} catch (httpErr) {
+    console.error('Failed to bind HTTP fallback API:', httpErr);
+}

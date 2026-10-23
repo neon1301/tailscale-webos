@@ -308,7 +308,34 @@
       }
     }
 
+    var HTTP_API = "http://127.0.0.1:1056";
+
     function callService(method, params, cb) {
+      // 1. First try direct local HTTP API for ultra-fast response & zero Luna bus lag
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", HTTP_API + "/" + method, true);
+      xhr.setRequestHeader("Content-Type", "application/json");
+      xhr.timeout = 2500;
+      xhr.onload = function() {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            var data = JSON.parse(xhr.responseText);
+            cb(data);
+            return;
+          } catch(e) {}
+        }
+        fallbackLuna(method, params, cb);
+      };
+      xhr.onerror = function() { fallbackLuna(method, params, cb); };
+      xhr.ontimeout = function() { fallbackLuna(method, params, cb); };
+      try {
+        xhr.send(JSON.stringify(params || {}));
+      } catch(e) {
+        fallbackLuna(method, params, cb);
+      }
+    }
+
+    function fallbackLuna(method, params, cb) {
       if (window.webOS && webOS.service && webOS.service.request) {
         webOS.service.request(SERVICE_URI, {
           method: method,
@@ -479,15 +506,10 @@
       }
     });
 
-    callService("start", {}, function() {
-      setTimeout(updateStatus, 1000);
-    });
+    updateStatus();
 
     setInterval(function() {
-      var badge = document.getElementById("badge");
-      if (!badge.classList.contains("online") && !badge.classList.contains("disabled")) {
-        updateStatus();
-      }
+      updateStatus();
     }, 3000);
 
     document.getElementById("btn-toggle-power").focus();

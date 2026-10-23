@@ -1,6 +1,6 @@
 {
   "id": "com.tailscale.webos",
-  "version": "1.104.2",
+  "version": "1.104.6",
   "app": "com.tailscale.webos",
   "services": [
     "com.tailscale.webos.service"
