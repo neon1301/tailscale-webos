@@ -29,7 +29,7 @@
 
 ## 📦 Быстрая установка
 
-1. Скачайте готовый `.ipk` файл со страницы [Releases](https://github.com/neon1301/tailscale-webos/releases/latest) (например, `com.tailscale.webos_1.104.2_all.ipk`).
+1. Скачайте свежий `.ipk` файл со страницы [Releases](https://github.com/neon1301/tailscale-webos/releases/latest) (актуальный релиз: [`com.tailscale.webos_1.104.8_all.ipk`](https://github.com/neon1301/tailscale-webos/releases/download/v1.104.8/com.tailscale.webos_1.104.8_all.ipk)).
 2. Установите на телевизор через **webOS Dev Manager** (просто перетащите файл мышкой) или через SSH:
    ```bash
    luna-send-pub -n 1 'luna://com.webos.appInstallService/dev/install' '{"id":"com.tailscale.webos","ipkUrl":"/tmp/tailscale.ipk"}'
@@ -40,7 +40,7 @@
 
 ---
 
-## 📺 Настройка приложений (Lampa, TorrServe и др.)
+## 📺 Настройка кинотеатров (Lampa, TorrServe, Vimu и др.)
 
 Tailscale на webOS слушает локальный порт:
 * **IP-адрес:** `127.0.0.1`
@@ -54,6 +54,30 @@ Tailscale на webOS слушает локальный порт:
 * Порт: `1055`
 
 Теперь трафик приложения безопасно идёт через ваш домашний сервер, VPS или выбранный Exit Node в Tailscale!
+
+---
+
+## 🎮 Настройка игр: Moonlight / Sunshine / DuoStream
+
+Для удаленного гейминга с дачи или из другой сети на домашний игровой ПК (`100.x.y.z`):
+
+1. **Вариант с Root (Рекомендуется для 4K 60/120FPS с минимальной задержкой):**
+   * При наличии Root-прав Tailscale автоматически запускается с драйвером ядра `/dev/net/tun` (`tailscale0`).
+   * Телевизор становится полноправным узлом сети: в **Moonlight на ТВ** вы просто вводите Tailscale IP вашего ПК (например, `100.66.187.32`) напрямую и играете без лагов и задержек.
+2. **Вариант без Root (через дачный роутер Subnet Router):**
+   * Если ТВ без Root, включите на роутере с Tailscale (Keenetic, OpenWrt, Mikrotik) или любом ПК на даче функцию **Subnet Router**:
+     ```bash
+     tailscale up --advertise-routes=192.168.1.0/24 --accept-routes
+     ```
+   * Телевизор по обычной локальной сети сможет обращаться к IP вашего домашнего ПК без модификаций Moonlight.
+
+---
+
+## ⚡ Архитектура Dual-Channel (Сверхбыстрый отклик интерфейса)
+
+Приложение использует двухканальную модель передачи данных:
+* **Канал 1 (Высокоскоростной HTTP API `127.0.0.1:1056`):** Мгновенная передача статуса, IP-адресов и команд переключения питания/автозапуска за 0–3 мс.
+* **Канал 2 (Системная шина webOS Luna):** Резервный канал для взаимодействия с системными сервисами webOS и фоновым запуском при старте ТВ.
 
 ---
 
@@ -99,13 +123,15 @@ tailscale-webos/
 
 ### Features
 * **No Root Required:** Operates in `userspace-networking` mode, providing SOCKS5/HTTP proxy at `127.0.0.1:1055`.
+* **Zero-latency Dual-Channel Architecture:** Direct HTTP API (`127.0.0.1:1056`) guarantees 0-3ms UI telemetry + Luna bus fallback.
+* **Gaming Setup (Moonlight / Sunshine / DuoStream):** Direct connection supported with root (`tailscale0` kernel tun), or via Subnet Router on LAN.
 * **QR Code Login:** Large QR code on TV screen for instant smartphone pairing.
-* **Remote Control Friendly:** Optimized for LG TV Magic Remote / D-pad.
+* **Remote Control Friendly:** Optimized for LG TV Magic Remote / D-pad with instant optimistic feedback.
 * **24/7 Watchdog:** Self-healing background service that restarts on network changes or boot.
 * **In-app Self-Update:** Download and apply latest Tailscale official ARM releases without a PC.
 
 ### Installation
-Download the latest `.ipk` from the [Releases](https://github.com/neon1301/tailscale-webos/releases/latest) section and install via webOS Dev Manager.
+Download the latest [com.tailscale.webos_1.104.8_all.ipk](https://github.com/neon1301/tailscale-webos/releases/download/v1.104.8/com.tailscale.webos_1.104.8_all.ipk) from [Releases](https://github.com/neon1301/tailscale-webos/releases/latest) and install via webOS Dev Manager.
 
 </details>
 
