@@ -71,17 +71,13 @@ function ensurePermissions() {
     } catch (e) {}
 }
 
-function stopAll() {
-    try {
-        child_process.execFile('/usr/bin/pkill', ['-9', '-f', 'tailscaled'], function () {});
-    } catch (e) {}
-    try {
-        child_process.execFile('/usr/bin/pkill', ['-9', '-f', 'tailscale'], function () {});
-    } catch (e) {}
+function stopAll(cb) {
+    child_process.execFile(getTailscaleBin(), ['--socket=' + socketFile, 'down'], { timeout: 4000 }, function () {
+        if (cb) cb();
+    });
 }
 
 function startDaemon(cb) {
-    ensurePermissions();
     if (!config.enabled) {
         if (cb) cb();
         return;
@@ -92,7 +88,9 @@ function startDaemon(cb) {
 
     child_process.execFile(tailscaleBin, ['--socket=' + socketFile, 'status'], { timeout: 2000 }, function (err, stdout, stderr) {
         if (!err || (stdout && stdout.indexOf('Logged out') !== -1)) {
-            if (cb) cb();
+            child_process.execFile(tailscaleBin, ['--socket=' + socketFile, 'up', '--reset'], { timeout: 5000 }, function () {
+                if (cb) cb();
+            });
             return;
         }
 
@@ -115,7 +113,9 @@ function startDaemon(cb) {
         }
 
         setTimeout(function () {
-            if (cb) cb();
+            child_process.execFile(tailscaleBin, ['--socket=' + socketFile, 'up', '--reset'], { timeout: 5000 }, function () {
+                if (cb) cb();
+            });
         }, 1200);
     });
 }
@@ -243,8 +243,9 @@ function handleToggleEnabled(params, cb) {
             cb({ returnValue: true, enabled: true });
         });
     } else {
-        stopAll();
-        cb({ returnValue: true, enabled: false });
+        stopAll(function () {
+            cb({ returnValue: true, enabled: false });
+        });
     }
 }
 

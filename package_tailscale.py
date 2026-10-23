@@ -4,14 +4,14 @@ import os
 import time
 
 build_dir = r'E:\TV\tailscale_build'
-out_ipk = r'E:\TV\com.tailscale.webos_1.104.6_all.ipk'
+out_ipk = r'E:\TV\com.tailscale.webos_1.104.7_all.ipk'
 
 # 1. debian-binary
 deb_binary = b'2.0\n'
 
 # 2. control.tar.gz
 control_content = b'''Package: com.tailscale.webos
-Version: 1.104.6
+Version: 1.104.7
 Section: misc
 Priority: optional
 Architecture: all

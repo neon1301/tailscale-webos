@@ -195,15 +195,17 @@
       display: none;
     }
     #update-banner {
-      background: #0284c7;
+      background: linear-gradient(135deg, #0284c7, #0369a1);
       color: #ffffff;
-      padding: 14px 28px;
-      border-radius: 14px;
-      font-size: 20px;
+      padding: 18px 36px;
+      border-radius: 18px;
+      font-size: 22px;
       font-weight: 600;
-      margin-top: 20px;
+      margin-top: 24px;
       display: none;
-      box-shadow: 0 4px 20px rgba(2, 132, 199, 0.4);
+      box-shadow: 0 8px 32px rgba(2, 132, 199, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      animation: fadeIn 0.3s ease;
     }
   </style>
   <script src="webOS.js"></script>
@@ -433,53 +435,72 @@
       });
     }
 
+    function showToast(text, duration) {
+      showBanner(text, duration || 5000);
+      try {
+        if (window.webOS && webOS.service && webOS.service.request) {
+          webOS.service.request("luna://com.webos.notification", {
+            method: "createToast",
+            parameters: { message: text }
+          });
+        }
+      } catch(e) {}
+    }
+
     function checkAndApplyUpdate() {
       if (isUpdating) return;
-      showBanner("Проверка официальных обновлений Tailscale...", 0);
+      showToast("🔍 Проверка официальных серверов Tailscale...", 0);
 
       callService("checkUpdate", {}, function(res) {
-        if (!res.returnValue) {
-          showBanner("Не удалось проверить обновления: проверьте интернет", 4000);
+        if (!res || !res.returnValue) {
+          showToast("❌ Не удалось проверить обновления. Проверьте интернет-соединение.", 4000);
           return;
         }
         if (!res.hasUpdate) {
-          showBanner("У вас уже установлена новейшая версия (" + res.currentVersion + ")! Обновление не требуется.", 5000);
+          showToast("✅ Установлена актуальная версия Tailscale (v" + res.currentVersion + ")! Обновление не требуется.", 6000);
           return;
         }
 
         // Has update -> download & apply
         isUpdating = true;
-        showBanner("Найдена новая версия: " + res.latestVersion + ". Скачивание с официального сервера...", 0);
+        showToast("🚀 Найдена новая версия: v" + res.latestVersion + ". Скачивание с официального сервера...", 0);
 
         callService("applyUpdate", {}, function(uRes) {
           isUpdating = false;
-          if (uRes.returnValue && uRes.success) {
-            showBanner("🎉 Успешно обновлено до версии " + uRes.version + "! Служба перезапущена.", 6000);
-            updateStatus();
+          if (uRes && uRes.returnValue && uRes.success) {
+            showToast("🎉 Успешно обновлено до версии v" + uRes.version + "! Служба перезапущена.", 6000);
+            setTimeout(updateStatus, 1000);
           } else {
-            showBanner("Ошибка при установке обновления: " + (uRes.error || "Сбой"), 5000);
+            showToast("❌ Ошибка при установке обновления: " + (uRes.error || "Сбой"), 5000);
           }
         });
       });
     }
 
     document.getElementById("btn-toggle-power").onclick = function() {
-      callService("toggleEnabled", { enabled: !isEnabled }, function() {
-        updateStatus();
+      var nextState = !isEnabled;
+      renderToggles(nextState, isAutostart);
+      showToast(nextState ? "⚡ Включение службы Tailscale..." : "⏸ Остановка Tailscale...", 3000);
+      callService("toggleEnabled", { enabled: nextState }, function(res) {
+        setTimeout(updateStatus, 600);
       });
     };
 
     document.getElementById("btn-toggle-autostart").onclick = function() {
-      callService("toggleAutostart", { autostart: !isAutostart }, function() {
-        updateStatus();
+      var nextState = !isAutostart;
+      renderToggles(isEnabled, nextState);
+      showToast(nextState ? "🚀 Автозапуск: ВКЛЮЧЕН" : "⏸ Автозапуск: ВЫКЛЮЧЕН", 3000);
+      callService("toggleAutostart", { autostart: nextState }, function(res) {
+        setTimeout(updateStatus, 600);
       });
     };
 
     document.getElementById("btn-check-update").onclick = checkAndApplyUpdate;
     document.getElementById("btn-login").onclick = doLogin;
     document.getElementById("btn-logout").onclick = function() {
+      showToast("Отключение от аккаунта Tailscale...", 3000);
       callService("down", {}, function() {
-        updateStatus();
+        setTimeout(updateStatus, 600);
       });
     };
 
@@ -492,16 +513,20 @@
 
       if (key === 38 || key === 37) {
         e.preventDefault();
-        var prev = (curIdx - 1 + buttons.length) % buttons.length;
+        var prev = curIdx <= 0 ? buttons.length - 1 : curIdx - 1;
         buttons[prev].focus();
       } else if (key === 40 || key === 39) {
         e.preventDefault();
-        var next = (curIdx + 1) % buttons.length;
+        var next = (curIdx === -1 || curIdx >= buttons.length - 1) ? 0 : curIdx + 1;
         buttons[next].focus();
       } else if (key === 13) {
-        if (curIdx >= 0) {
+        if (curIdx >= 0 && buttons[curIdx]) {
           e.preventDefault();
           buttons[curIdx].click();
+        } else if (buttons.length > 0) {
+          e.preventDefault();
+          buttons[0].focus();
+          buttons[0].click();
         }
       }
     });
